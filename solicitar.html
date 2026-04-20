@@ -541,18 +541,35 @@ try{
 var cur=1;
 function goS(s){
   if(cur===1&&s===2){
-    if(!document.getElementById('wz_nom').value||!document.getElementById('wz_ci').value||!document.getElementById('wz_tel').value||!document.getElementById('wz_emp').value||!(parseFloat(document.getElementById('wz_ing').value)||0)){
-      alert('Por favor completa los campos obligatorios de Cliente.');return;
+    var req=['wz_nom','wz_ci','wz_tel','wz_emp','wz_ing'];
+    for(var i=0;i<req.length;i++){
+      var reqEl=document.getElementById(req[i]);
+      if(!reqEl || !String(reqEl.value||'').trim()){
+        alert('Por favor completa los campos requeridos.');
+        return false;
+      }
     }
   }
-  document.getElementById('fs'+cur).classList.remove('on');
-  var pd=document.getElementById('pd'+cur);pd.classList.remove('on');pd.classList.add('done');
+  var totalSteps = document.querySelectorAll('.prog .ps').length || 2;
+  document.querySelectorAll('.fs').forEach(function(el){ if(el) el.classList.remove('on'); });
+  document.querySelectorAll('.prog .ps').forEach(function(el){ if(el) el.classList.remove('on'); });
   cur=s;
-  document.getElementById('fs'+cur).classList.add('on');
-  document.getElementById('pd'+cur).classList.add('on');
-  document.getElementById('pd'+cur).classList.remove('done');
-  for(var j=s+1;j<=2;j++){var d=document.getElementById('pd'+j);d.classList.remove('done','on');}
+  var fs=document.getElementById('fs'+cur);
+  var pd=document.getElementById('pd'+cur);
+  if(fs) fs.classList.add('on');
+  if(pd) pd.classList.add('on');
+  for(var j=1;j<cur;j++){
+    var doneEl=document.getElementById('pd'+j);
+    if(doneEl) doneEl.classList.add('done');
+  }
+  for(var j=cur;j<=totalSteps;j++){
+    var stepEl=document.getElementById('pd'+j);
+    if(stepEl && j!==cur) stepEl.classList.remove('done');
+    if(stepEl && j===cur) stepEl.classList.remove('done');
+  }
+  return false;
 }
+
 
 function calcCrediScore(){
   var g=function(id){ var el=document.getElementById(id); return el?el.value:''; };
