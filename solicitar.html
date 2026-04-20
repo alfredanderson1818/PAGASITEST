@@ -396,7 +396,7 @@ footer{background:var(--ink);border-top:1px solid rgba(255,255,255,.05);padding:
           <div class="fg"><label class="fl">¿Cómo nos conoció?</label>
             <select id="wz_conocio"><option value="">Seleccionar...</option><option value="referido">Referido por cliente</option><option value="redes">Redes sociales</option><option value="vitrina">Vitrina / local</option><option value="google">Google / internet</option><option value="anterior">Cliente anterior</option><option value="otro">Otro</option></select>
           </div>
-          <div class="fnav"><button type="button" id="btnContinuarSolicitud" class="btn btn-p" onclick="event.preventDefault();goS(2);return false;" style="flex:1;justify-content:center;">Continuar</button></div>
+          <div class="fnav"><button type="button" id="btnContinuarSolicitud" class="btn btn-p" onclick="goS(2); return false;" style="flex:1;justify-content:center;">Continuar</button></div>
         </div>
 
         <div class="fs" id="fs2">
@@ -465,8 +465,8 @@ footer{background:var(--ink);border-top:1px solid rgba(255,255,255,.05);padding:
             <div class="fg"><label class="fl">Referencia 2 · Observación</label><input type="text" id="wz_r2obs" placeholder="Opcional"></div>
           </div>
           <div class="fnav">
-            <button type="button" id="btnAtrasSolicitud" class="btn btn-s" onclick="event.preventDefault();goS(1);return false;" style="flex:0 0 auto;">Atrás</button>
-            <button type="button" id="btnGuardarSolicitud" class="btn btn-p" onclick="event.preventDefault();submitF();return false;" style="flex:1;justify-content:center;">Guardar en Pagasi</button>
+            <button type="button" id="btnAtrasSolicitud" class="btn btn-s" onclick="goS(1); return false;" style="flex:0 0 auto;">Atrás</button>
+            <button type="button" id="btnGuardarSolicitud" class="btn btn-p" onclick="submitF(); return false;" style="flex:1;justify-content:center;">Guardar en Pagasi</button>
           </div>
         </div>
 
