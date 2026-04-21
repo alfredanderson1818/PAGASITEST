@@ -1817,14 +1817,6 @@ tbody tr:hover td {
 <script src="db.js"></script>
 <script>
 
-if(typeof FIREBASE_READY === 'undefined') var FIREBASE_READY = false;
-if(typeof USERS_LOCAL === 'undefined')   var USERS_LOCAL = [{user:'',pass:'',nombre:'Administrador',rol:'Administrador'}];
-if(typeof LOCAL_CREDS_KEY === 'undefined') var LOCAL_CREDS_KEY = 'pagasi_local_creds';
-if(typeof S === 'undefined')             var S = {motos:[],clientes:[],creds:[],pagos:[],egresos:[],cuentas:[],movimientos:[],cuentasPendientes:[],page:'dash',mTab:'todas',credTab:'todos',pagosTab:'todos',saveFn:null,clienteFiltro:'',currentUser:null};
-if(typeof PLAN === 'undefined')          var PLAN = {plazo:10,factor:1.90,inicial:0.40,tasaMensual:13.77,apy:370.28};
-if(typeof CATALOGO === 'undefined')      var CATALOGO = [];
-if(typeof PGL === 'undefined')           var PGL = {dash:'Dashboard',clientes:'Clientes',motos:'Motocicletas',creditos:'Financiamientos',pagos:'Pagos',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS — Rastreo',notif:'Notificaciones',reportes:'Reportes',cuentas:'Cuentas',conta:'Contabilidad',plan:'Plan & Precios',config:'Configuración',users:'Usuarios'};
-if(typeof DB === 'undefined')            var DB = {load:function(){return Promise.resolve();},saveMoto:function(){},delMoto:function(){},saveCliente:function(){},delCliente:function(){},saveCred:function(){},updateCred:function(){},savePago:function(){},saveEgreso:function(){},delEgreso:function(){},getUsuarios:function(){return Promise.resolve([]);},saveUsuario:function(){return Promise.resolve();},updateUsuario:function(){},deleteUsuario:function(){},saveInvitacion:function(){},getInvitacion:function(){return Promise.resolve(null);},usarInvitacion:function(){},saveCuenta:function(){},delCuenta:function(){},updateCuenta:function(){},saveMovimiento:function(){},delMovimiento:function(){}};
 
 
 
