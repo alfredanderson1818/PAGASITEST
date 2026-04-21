@@ -1812,403 +1812,45 @@ tbody tr:hover td {
   </div>
 </div>
 <div class="toasts" id="toasts"></div>
+<script src="utils.js"></script>
+<script src="state.js"></script>
+<script src="db.js"></script>
 <script>
 
-// ╔══════════════════════════════════════════════════════════╗
-// ║   FIREBASE — PEGA TU CONFIG AQUÍ                        ║
-// ║   1. console.firebase.google.com                        ║
-// ║   2. Engranaje ⚙ → Configuración del proyecto           ║
-// ║   3. Tu app Web → copia el objeto firebaseConfig        ║
-// ╚══════════════════════════════════════════════════════════╝
-var FIREBASE_CONFIG = {
-  apiKey:            'AIzaSyDrtg1AOD3nX1bnS3WW87g14ofa9_OPxDo',
-  authDomain:        'pagasi-b859b.firebaseapp.com',
-  projectId:         'pagasi-b859b',
-  storageBucket:     'pagasi-b859b.firebasestorage.app',
-  messagingSenderId: '230117681047',
-  appId:             '1:230117681047:web:53dc6a914fec4068f606d2'
-};
+// ── Compatibilidad: si db.js no cargó, declarar con null para evitar ReferenceError ──
+if(typeof $ === 'undefined')             var $ = function(id){return document.getElementById(id);};
+if(typeof fmt === 'undefined')           var fmt = function(n){return '$'+parseFloat(n).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});};
+if(typeof ini === 'undefined')           var ini = function(n){return n.split(' ').slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();};
+if(typeof sbg === 'undefined')           var sbg = function(s){return ({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');};
+if(typeof clean === 'undefined')         var clean = function(o){var r={};Object.keys(o).forEach(function(k){if(o[k]!==undefined)r[k]=o[k]===null?null:o[k];});return r;};
+if(typeof toast === 'undefined')         var toast = function(msg,type){type=type||'info';var c=document.getElementById('toasts');if(!c)return;var t=document.createElement('div');t.className='toast '+(type||'info');t.innerHTML='<span>'+msg+'</span>';c.appendChild(t);setTimeout(function(){t.remove();},3300);};
+if(typeof showLoader === 'undefined')    var showLoader = function(msg,sub){var w=document.getElementById('ld-wrap');if(w)w.style.display='flex';};
+if(typeof hideLoader === 'undefined')    var hideLoader = function(){var w=document.getElementById('ld-wrap');if(w)w.style.display='none';};
+if(typeof pgGet === 'undefined')         var pgGet = function(key){return (window._pages&&window._pages[key])||1;};
+if(typeof pgSet === 'undefined')         var pgSet = function(key,n){if(!window._pages)window._pages={};window._pages[key]=n;};
+if(typeof nombreMesEsp === 'undefined')  var nombreMesEsp = function(yyyy_mm){var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];var p=(yyyy_mm||'').split('-');return meses[parseInt(p[1])-1]+' '+p[0];};
+if(typeof sha256Hex === 'undefined')     var sha256Hex = async function(str){if(!(window.crypto&&window.crypto.subtle))throw new Error('SHA-256 no disponible');var buf=await window.crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(str||'')));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');};
+if(typeof db === 'undefined')            var db = null;
+if(typeof auth === 'undefined')          var auth = null;
+if(typeof FIREBASE_READY === 'undefined') var FIREBASE_READY = false;
+if(typeof USERS_LOCAL === 'undefined')   var USERS_LOCAL = [{user:'',pass:'',nombre:'Administrador',rol:'Administrador'}];
+if(typeof LOCAL_CREDS_KEY === 'undefined') var LOCAL_CREDS_KEY = 'pagasi_local_creds';
+if(typeof S === 'undefined')             var S = {motos:[],clientes:[],creds:[],pagos:[],egresos:[],cuentas:[],movimientos:[],cuentasPendientes:[],page:'dash',mTab:'todas',credTab:'todos',pagosTab:'todos',saveFn:null,clienteFiltro:'',currentUser:null};
+if(typeof PLAN === 'undefined')          var PLAN = {plazo:10,factor:1.90,inicial:0.40,tasaMensual:13.77,apy:370.28};
+if(typeof CATALOGO === 'undefined')      var CATALOGO = [];
+if(typeof PGL === 'undefined')           var PGL = {dash:'Dashboard',clientes:'Clientes',motos:'Motocicletas',creditos:'Financiamientos',pagos:'Pagos',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS — Rastreo',notif:'Notificaciones',reportes:'Reportes',cuentas:'Cuentas',conta:'Contabilidad',plan:'Plan & Precios',config:'Configuración',users:'Usuarios'};
+if(typeof DB === 'undefined')            var DB = {load:function(){return Promise.resolve();},saveMoto:function(){},delMoto:function(){},saveCliente:function(){},delCliente:function(){},saveCred:function(){},updateCred:function(){},savePago:function(){},saveEgreso:function(){},delEgreso:function(){},getUsuarios:function(){return Promise.resolve([]);},saveUsuario:function(){return Promise.resolve();},updateUsuario:function(){},deleteUsuario:function(){},saveInvitacion:function(){},getInvitacion:function(){return Promise.resolve(null);},usarInvitacion:function(){},saveCuenta:function(){},delCuenta:function(){},updateCuenta:function(){},saveMovimiento:function(){},delMovimiento:function(){}};
 
-// ── Notas de Firestore (consola → Firestore → Reglas): ──────
-// rules_version = '2';
-// service cloud.firestore {
-//   match /databases/{database}/documents {
-//     match /{document=**} {
-//       allow read, write: if request.auth != null;
-//     }
-//   }
-// }
-// ────────────────────────────────────────────────────────────
 
-var db   = null;
-var auth = null;
-var FIREBASE_READY = false;
 
-// Credenciales locales (modo sin Firebase)
-var USERS_LOCAL = [{ user: '', pass: '', nombre: 'Administrador', rol: 'Administrador' }]; // Configura en Configuración → Acceso Local
 
-var LOCAL_CREDS_KEY = 'pagasi_local_creds';
 
-async function sha256Hex(str){
-  if(!(window.crypto&&window.crypto.subtle&&window.TextEncoder)) throw new Error('SHA-256 no disponible');
-  var buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str||'')));
-  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-}
 
-function getCreditoTotalCuotas(c){
-  return parseInt((c&&c.totalCuotas) || ((c&&c.plazo) ? c.plazo*2 : 20), 10) || 20;
-}
-function getCreditoCuotaBase(c){
-  return parseFloat((c&&(c.cuotaQ||c.cuota)) || 0) || 0;
-}
-function getCreditoPagosConfirmados(c){
-  if(!c) return 0;
-  var pagosDelCred = (S&&Array.isArray(S.pagos))
-    ? S.pagos.filter(function(p){
-        return p && !p.eliminado && p.estado==='confirmado' && p.cred===c.id && !p.esInicial && p.tipoOperacion!=='inicial_credito';
-      })
-    : [];
-  if(pagosDelCred.length){
-    return pagosDelCred.reduce(function(a,p){ return a + (parseFloat(p.monto)||0); }, 0);
-  }
-  if(Array.isArray(c.pagosRegistrados) && c.pagosRegistrados.length){
-    return c.pagosRegistrados.reduce(function(a,h){ return a + (parseFloat(h.montoPagado)||0); }, 0);
-  }
-  return (parseInt(c.pagado,10)||0) * getCreditoCuotaBase(c);
-}
-function getCreditoCuotasPagadas(c){
-  if(!c) return 0;
-  var totalCuotas = getCreditoTotalCuotas(c);
-  var cuotaBase = getCreditoCuotaBase(c);
-  var pagadoRegistrado = parseInt(c.pagado,10) || 0;
-  var pagadoPorMonto = cuotaBase>0 ? Math.floor((getCreditoPagosConfirmados(c)+0.000001)/cuotaBase) : pagadoRegistrado;
-  return Math.max(0, Math.min(totalCuotas, Math.max(pagadoRegistrado, pagadoPorMonto)));
-}
-function getCreditoSaldoPendiente(c){
-  return Math.max(0, (parseFloat((c&&c.total) || 0)||0) - getCreditoPagosConfirmados(c));
-}
-function esMovimientoInicialCredito(m){
-  if(!m || m.eliminado) return false;
-  var concepto = (m.concepto||'');
-  return m.tipoOperacion==='inicial_credito' || concepto.indexOf('Inicial · ')===0;
-}
-function getTotalInicialesCobradas(){
-  return (S&&Array.isArray(S.movimientos) ? S.movimientos : []).filter(esMovimientoInicialCredito).reduce(function(a,m){
-    return a + (parseFloat(m.monto)||0);
-  }, 0);
-}
-function marcarInicialCreditoEliminada(credId, motivo){
-  if(!credId || !Array.isArray(S.movimientos)) return;
-  var ahora = new Date().toISOString();
-  var actor = (S.currentUser&&S.currentUser.nombre)||'Admin';
-  S.movimientos.forEach(function(m){
-    if(!m || m.eliminado) return;
-    var esDeEsteCredito = m.creditoId===credId || m.conceptoCredito===credId || ((m.concepto||'').indexOf('Inicial · ')===0 && (m.concepto||'').indexOf(credId)>=0);
-    if(!esDeEsteCredito) return;
-    m.eliminado = true;
-    m.eliminadoPor = actor;
-    m.eliminadoEn = ahora;
-    if(motivo) m.eliminadoRazon = motivo;
-    DB.saveMovimiento(m);
-  });
-}
-
-try {
-  if(typeof firebase === 'undefined'){
-    console.warn('SDK de Firebase no cargado — modo local activo');
-  } else if(FIREBASE_CONFIG.apiKey !== 'TU_API_KEY'){
-    var _existingApp;
-    try { _existingApp = firebase.app(); } catch(ex) {}
-    if(!_existingApp) firebase.initializeApp(FIREBASE_CONFIG);
-    if(typeof firebase.firestore !== 'function'){
-      throw new Error('Firestore bundle no cargado. Habilita Firestore Database en Firebase Console.');
-    }
-    db   = firebase.firestore();
-
-    if(typeof firebase.auth === 'function') auth = firebase.auth();
-    FIREBASE_READY = true;
-    console.log('Firebase inicializado correctamente');
-  } else {
-    console.warn('⚠ Firebase no configurado — usando modo local (admin/admin)');
-  }
-} catch(e){ console.warn('Firebase init:', e.message); }
-
-// Loader
-function showLoader(msg,sub){
-  var w=$('ld-wrap'),m=$('ld-msg'),s=$('ld-sub');
-  if(w)w.style.display='flex';
-  if(m)m.textContent=msg||'Cargando...';
-  if(s)s.textContent=sub||'';
-}
-function hideLoader(){var w=$('ld-wrap');if(w)w.style.display='none';}
-
-// Firebase guarda el mismo objeto — sin conversión necesaria
-function mapMoto(r){return r;}
-function mapCred(r){return r;}
-function mapPago(r){return r;}
-
-// Limpia undefined antes de guardar en Firestore
-function clean(o){
-  var r={};
-  Object.keys(o).forEach(function(k){if(o[k]!==undefined)r[k]=o[k]===null?null:o[k];});
-  return r;
-}
-
-// Cache local específica para motos — evita perder unidades nuevas entre sesiones
-var MOTOS_CACHE_KEY='pagasi_motos_cache_v1';
-function loadMotosCache(){
-  try{
-    var raw=localStorage.getItem(MOTOS_CACHE_KEY);
-    var arr=raw?JSON.parse(raw):[];
-    return Array.isArray(arr)?arr:[];
-  }catch(e){ return []; }
-}
-function saveMotosCache(arr){
-  try{ localStorage.setItem(MOTOS_CACHE_KEY, JSON.stringify(Array.isArray(arr)?arr:[])); }catch(e){}
-}
-function upsertMotoCache(moto){
-  try{
-    var arr=loadMotosCache();
-    var i=arr.findIndex(function(x){ return String(x.id)===String(moto.id); });
-    if(i>=0) arr[i]=clean(moto); else arr.push(clean(moto));
-    saveMotosCache(arr);
-  }catch(e){}
-}
-function delMotoCache(id){
-  try{
-    var arr=loadMotosCache().filter(function(x){ return String(x.id)!==String(id); });
-    saveMotosCache(arr);
-  }catch(e){}
-}
-function mergeMotosPreferLocal(remote, local){
-  var map={};
-  (Array.isArray(remote)?remote:[]).forEach(function(x){ if(x&&x.id!=null) map[String(x.id)]=x; });
-  (Array.isArray(local)?local:[]).forEach(function(x){ if(x&&x.id!=null) map[String(x.id)]=x; });
-  return Object.keys(map).map(function(k){ return map[k]; });
-}
-
-// ── DB — persistencia con Firestore ──
-// Cola offline: guarda operaciones pendientes cuando no hay conexión
-var _dbQueue = [];
-var _dbOnline = true;
-window.addEventListener('online',  function(){ _dbOnline=true;  _flushDbQueue(); });
-window.addEventListener('offline', function(){ _dbOnline=false; });
-
-function _dbSilent(fn){
-  // Ejecuta fn() y silencia errores de red (WebChannel transport errors)
-  try {
-    var p = fn();
-    if(p && p.catch) p.catch(function(e){
-      var msg = e.message||'';
-      // Ignorar errores de transporte — la persistencia offline los reintenta
-      if(msg.includes('transport') || msg.includes('WebChannel') || msg.includes('network') || e.code==='unavailable') return;
-      console.warn('DB write error:', msg);
-    });
-  } catch(e){ console.warn('DB error:', e.message); }
-}
-
-function _flushDbQueue(){
-  var q=_dbQueue.slice(); _dbQueue=[];
-  q.forEach(function(fn){ _dbSilent(fn); });
-}
-
-var DB = {
-  load: function(){
-    var motosCacheLocal = loadMotosCache();
-    if(!db){
-      if(motosCacheLocal.length) S.motos = mergeMotosPreferLocal(S.motos, motosCacheLocal);
-      return Promise.resolve();
-    }
-    showLoader('Cargando datos...','Conectando con Firebase');
-    return Promise.all([
-      db.collection('motos').get(),
-      db.collection('clientes').get(),
-      db.collection('creditos').get(),
-      db.collection('pagos').get(),
-      db.collection('egresos').get(),
-      Promise.resolve({docs:[]}),
-      db.collection('movimientos').get(),
-      db.collection('cuentasPendientes').get(),
-      db.collection('config').doc('plan').get(),
-      db.collection('config').doc('catalogo').get(),
-      db.collection('config').doc('planes').get(),
-    ]).then(function(snaps){
-      function read(snap){return snap.docs.map(function(d){return d.data();});}
-      var m=read(snaps[0]),cl=read(snaps[1]),cr=read(snaps[2]),p=read(snaps[3]),e=read(snaps[4]),_skip=snaps[5],mv=read(snaps[6]),pnd=read(snaps[7]);
-      var planDoc = snaps[8], catalogoDoc = snaps[9], planesDoc = snaps[10];
-      if(planDoc && planDoc.exists){
-        var pd = planDoc.data() || {};
-        if(Object.prototype.hasOwnProperty.call(pd,'factor')) PLAN.factor = pd.factor;
-        if(Object.prototype.hasOwnProperty.call(pd,'inicial')) PLAN.inicial = pd.inicial;
-        if(Object.prototype.hasOwnProperty.call(pd,'tasaMensual')) PLAN.tasaMensual = pd.tasaMensual;
-        if(Object.prototype.hasOwnProperty.call(pd,'plazo')) PLAN.plazo = pd.plazo;
-        if(Object.prototype.hasOwnProperty.call(pd,'apy')) PLAN.apy = pd.apy;
-        var graciaCfg = Object.prototype.hasOwnProperty.call(pd,'diasGracia') ? pd.diasGracia : pd.gracia;
-        if(typeof graciaCfg !== 'undefined' && graciaCfg !== null) PLAN.diasGracia = graciaCfg;
-        var moraCfg = Object.prototype.hasOwnProperty.call(pd,'moraPct') ? pd.moraPct : pd.mora_pct;
-        if(typeof moraCfg !== 'undefined' && moraCfg !== null) PLAN.moraPct = moraCfg;
-      }
-      if(catalogoDoc && catalogoDoc.exists){
-        var catData = catalogoDoc.data() || {};
-        if(Array.isArray(catData.items) && catData.items.length){
-          CATALOGO.splice(0, CATALOGO.length);
-          catData.items.forEach(function(item){ CATALOGO.push(item); });
-        }
-      }
-      if(planesDoc && planesDoc.exists){
-        var extraData = planesDoc.data() || {};
-        window._planesExtra = Array.isArray(extraData.items) ? extraData.items : [];
-      } else {
-        window._planesExtra = window._planesExtra || [];
-      }
-      S.motos       = mergeMotosPreferLocal(m.map(mapMoto), motosCacheLocal);
-      saveMotosCache(S.motos);
-      S.clientes    = cl;
-      S.creds       = cr.map(mapCred);
-      S.pagos       = p.map(mapPago);
-      S.egresos     = e;
-      S.movimientos = mv;
-      S.cuentasPendientes = pnd;
-      calcularMoraAuto();
-      cargarCuentasBanc();
-      cargarEmpresa();
-      hideLoader();
-      setTimeout(mostrarAlertaMora, 800); // pequeño delay para que el dashboard cargue
-    }).catch(function(e){
-      hideLoader();
-      // Si es error de red, trabajar con datos locales sin avisar con error
-      if(e.code==='unavailable'||( e.message&&e.message.includes('network'))){
-        if(motosCacheLocal.length) S.motos = mergeMotosPreferLocal(S.motos, motosCacheLocal);
-        toast('Sin conexión — modo offline activo','info');
-      } else {
-        if(motosCacheLocal.length) S.motos = mergeMotosPreferLocal(S.motos, motosCacheLocal);
-        toast('Error al cargar datos: '+e.message,'error');
-      }
-    });
-  },
-  saveMoto:    function(o){ upsertMotoCache(o); if(!db)return; _dbSilent(function(){ return db.collection('motos').doc(String(o.id)).set(clean(o)); }); },
-  delMoto:     function(id){ delMotoCache(id); if(!db)return; _dbSilent(function(){ return db.collection('motos').doc(String(id)).delete(); }); },
-  saveCliente: function(o){ if(!db)return; _dbSilent(function(){ return db.collection('clientes').doc(String(o.id)).set(clean(o)); }); },
-  delCliente:  function(id){ if(!db)return; _dbSilent(function(){ return db.collection('clientes').doc(String(id)).delete(); }); },
-  saveCred:    function(o){ if(!db)return; _dbSilent(function(){ return db.collection('creditos').doc(o.id).set(clean(o)); }); },
-  updateCred:  function(id,u){ if(!db)return; _dbSilent(function(){ return db.collection('creditos').doc(id).update(u); }); },
-  savePago:    function(o){ if(!db)return; _dbSilent(function(){ return db.collection('pagos').doc(o.id).set(clean(o)); }); },
-  saveEgreso:  function(o){ if(!db)return; _dbSilent(function(){ return db.collection('egresos').doc(String(o.id)).set(clean(o)); }); },
-  delEgreso:   function(id){ if(!db)return; _dbSilent(function(){ return db.collection('egresos').doc(String(id)).delete(); }); },
-};
-
-// Usuarios e invitaciones en Firestore
-DB.getUsuarios    = function(){ if(!db) return Promise.resolve([]); return db.collection('usuarios').get().then(function(s){return s.docs.map(function(d){return Object.assign({uid:d.id},d.data());});}); };
-DB.saveUsuario    = function(uid,data){ if(!db) return Promise.resolve(); return db.collection('usuarios').doc(uid).set(data,{merge:true}); };
-DB.updateUsuario  = function(uid,data){ if(!db) return; _dbSilent(function(){ return db.collection('usuarios').doc(uid).update(data); }); };
-DB.deleteUsuario  = function(uid){ if(!db) return; _dbSilent(function(){ return db.collection('usuarios').doc(uid).delete(); }); };
-DB.saveInvitacion = function(token,data){ if(!db) return; return db.collection('invitaciones').doc(token).set(data); };
-DB.getInvitacion  = function(token){ if(!db) return Promise.resolve(null); return db.collection('invitaciones').doc(token).get(); };
-DB.usarInvitacion = function(token,uid){ if(!db) return; _dbSilent(function(){ return db.collection('invitaciones').doc(token).update({usado:true,uid:uid,fechaUso:new Date().toISOString()}); }); };
-DB.saveCuenta     = function(o){ if(!db)return; _dbSilent(function(){ return db.collection('cuentas').doc(String(o.id)).set(clean(o)); }); };
-DB.delCuenta      = function(id){ if(!db)return; _dbSilent(function(){ return db.collection('cuentas').doc(String(id)).delete(); }); };
-DB.updateCuenta   = function(id,u){ if(!db)return; _dbSilent(function(){ return db.collection('cuentas').doc(String(id)).update(u); }); };
-DB.saveMovimiento = function(o){ if(!db)return; _dbSilent(function(){ return db.collection('movimientos').doc(o.id).set(clean(o)); }); };
-DB.delMovimiento  = function(id){ if(!db)return; _dbSilent(function(){ return db.collection('movimientos').doc(id).delete(); }); };
-
-// ── Lista de módulos disponibles ──
-var MODULOS = [
-  {id:'dash',       label:'Dashboard',        grupo:'Principal'},
-  {id:'clientes',   label:'Clientes',          grupo:'Gestión'},
-  {id:'motos',      label:'Motocicletas',      grupo:'Gestión'},
-  {id:'creditos',   label:'Financiamientos',   grupo:'Gestión'},
-  {id:'pagos',      label:'Pagos',             grupo:'Gestión'},
-  {id:'cobranza',   label:'Cobranza',          grupo:'Operaciones'},
-  {id:'contratos',  label:'Contratos',         grupo:'Operaciones'},
-  {id:'gps',        label:'GPS Rastreo',       grupo:'Operaciones'},
-  {id:'notif',      label:'Notificaciones',    grupo:'Operaciones'},
-  {id:'reportes',   label:'Reportes',          grupo:'Análisis'},
-  {id:'cuentas',    label:'Cuentas',           grupo:'Análisis'},
-  {id:'conta',      label:'Contabilidad',      grupo:'Análisis'},
-  {id:'plan',       label:'Plan & Precios',    grupo:'Sistema'},
-  {id:'config',     label:'Configuración',     grupo:'Sistema'},
-  {id:'users',      label:'Usuarios',          grupo:'Sistema'},
-];
 
 // (S.currentUser se inicializa después de declarar S)
 
-// ══════════════════════════════════════════
-// CATÁLOGO OFICIAL PAGASI — PLAN 10 MESES
-// ══════════════════════════════════════════
-const PLAN = {plazo:10, factor:1.90, inicial:0.40, tasaMensual:13.77, apy:370.28};
-
-try {
-  var _catLs = JSON.parse(localStorage.getItem('pagasi_catalogo_config')||'null');
-  if(Array.isArray(_catLs) && _catLs.length){ CATALOGO.splice(0, CATALOGO.length); _catLs.forEach(function(item){ CATALOGO.push(item); }); }
-  var _planLs = JSON.parse(localStorage.getItem('pagasi_config_plan')||'null');
-  if(_planLs && typeof _planLs==='object'){
-    if(Object.prototype.hasOwnProperty.call(_planLs,'factor')) PLAN.factor = _planLs.factor;
-    if(Object.prototype.hasOwnProperty.call(_planLs,'inicial')) PLAN.inicial = _planLs.inicial;
-    if(Object.prototype.hasOwnProperty.call(_planLs,'tasaMensual')) PLAN.tasaMensual = _planLs.tasaMensual;
-    if(Object.prototype.hasOwnProperty.call(_planLs,'plazo')) PLAN.plazo = _planLs.plazo;
-    if(Object.prototype.hasOwnProperty.call(_planLs,'apy')) PLAN.apy = _planLs.apy;
-    var _gr = Object.prototype.hasOwnProperty.call(_planLs,'diasGracia') ? _planLs.diasGracia : _planLs.gracia;
-    if(typeof _gr!=='undefined' && _gr!==null) PLAN.diasGracia = _gr;
-    var _mp = Object.prototype.hasOwnProperty.call(_planLs,'moraPct') ? _planLs.moraPct : _planLs.mora_pct;
-    if(typeof _mp!=='undefined' && _mp!==null) PLAN.moraPct = _mp;
-  }
-  window._planesExtra = JSON.parse(localStorage.getItem('pagasi_planes_extra')||'[]') || [];
-} catch(_cfgErr) { window._planesExtra = window._planesExtra || []; }
-
-
-const CATALOGO = [
-  {id:1,modelo:'NEW HORSE 150',precio:1320.00},
-  {id:2,modelo:'EK XPRESS 150',precio:1090.00},
-  {id:3,modelo:'EK XPRESS II 150',precio:1126.00},
-  {id:4,modelo:'EK XPRESS 200S',precio:1360.00},
-  {id:5,modelo:'EK XPRESS 150 LITE',precio:1020.00},
-  {id:6,modelo:'NEW OWEN II 150',precio:1255.00},
-  {id:7,modelo:'OWEN 200S',precio:1550.00},
-  {id:8,modelo:'RK 200',precio:1750.00},
-  {id:9,modelo:'RK 250',precio:2075.00},
-  {id:10,modelo:'TX 250 GS',precio:2599.00},
-  {id:11,modelo:'MATRIX 150 LITE',precio:1290.00},
-  {id:12,modelo:'MATRIX 150',precio:1499.00},
-  {id:13,modelo:'NEW OUTLOOK 175',precio:2450.00},
-  {id:14,modelo:'OUTLOOK XL PALETA',precio:4851.00},
-  {id:15,modelo:'ATLAS 200HD',precio:4600.00},
-];
-
-function calcMoto(precio){
-  const ini = precio * PLAN.inicial;
-  const fin = precio - ini;
-  const total = fin * PLAN.factor;
-  const cuotaM = total / PLAN.plazo;
-  const cuotaQ = cuotaM / 2;
-  const totalPagado = ini + total;
-  return {ini,fin,total,cuotaM,cuotaQ,totalPagado};
-}
 
 // ══════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════
-const S = {
-  motos:      [],
-  clientes:   [],
-  creds:      [],
-  pagos:      [],
-  egresos:    [],
-  cuentas:    [],
-  movimientos:[],
-  cuentasPendientes:[],
-  page:'dash', mTab:'todas', credTab:'todos', pagosTab:'todos', saveFn:null, clienteFiltro:'',
-  currentUser: null
-};
-
-const $=id=>document.getElementById(id);
-const fmt=n=>'$'+parseFloat(n).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
-const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',clientes:'Clientes',motos:'Motocicletas',creditos:'Financiamientos',pagos:'Pagos',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS — Rastreo',notif:'Notificaciones',reportes:'Reportes',cuentas:'Cuentas',conta:'Contabilidad',plan:'Plan & Precios',config:'Configuración',users:'Usuarios'};
-
-const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
-function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
-function isAdminUser(){ return !!(S.currentUser && S.currentUser.rol==='Administrador'); }
 // ══════════════════════════════════════════
 // PERMISOS POR ROL — presets automáticos
 // ══════════════════════════════════════════
@@ -2588,34 +2230,6 @@ function closeGlobalSearch(){
 
 // ══════════════════════════════════════════
 // DARK MODE
-// ══════════════════════════════════════════
-function toggleDark(){
-  var isDark = document.documentElement.getAttribute('data-theme')==='dark';
-  setDark(!isDark);
-  setTimeout(function(){ if(typeof renderDashChart==='function') renderDashChart(); }, 50);
-}
-function setDark(on){
-  if(on){
-    document.documentElement.setAttribute('data-theme','dark');
-    document.documentElement.style.setProperty('color-scheme','dark');
-  } else {
-    document.documentElement.setAttribute('data-theme','light');
-    document.documentElement.style.setProperty('color-scheme','light');
-  }
-  ['darkToggle','darkToggleMob'].forEach(function(id){
-    var btn=document.getElementById(id);
-    if(btn){ btn.textContent = on ? '☾' : '☀'; btn.title = on ? 'Modo claro' : 'Modo oscuro'; }
-  });
-  try{ localStorage.setItem('pagasi_theme', on?'dark':'light'); }catch(e){}
-}
-// Apply saved theme immediately on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', function(){
-  try{
-    var saved = localStorage.getItem('pagasi_theme');
-    if(saved==='dark') setDark(true);
-    else if(!saved && window.matchMedia('(prefers-color-scheme: dark)').matches) setDark(true);
-  }catch(e){}
-});
 
 // ══════════════════════════════════════════
 // CHART.JS — DASHBOARD INGRESOS
@@ -2697,28 +2311,6 @@ function renderDashChart(){
   });
 }
 // ══════════════════════════════════════════
-// SKELETON LOADERS
-// ══════════════════════════════════════════
-function showSkeleton(){
-  var cnt = $('cnt');
-  if(!cnt) return;
-  var skCards = Array(4).fill(0).map(()=>
-    '<div class="sk-card" style="flex:1">'+
-      '<div class="sk sk-line" style="width:35%;height:10px"></div>'+
-      '<div class="sk sk-val"></div>'+
-      '<div class="sk sk-line" style="width:70%"></div>'+
-      '<div class="sk sk-line" style="width:50%;margin-top:12px"></div>'+
-    '</div>'
-  ).join('');
-  cnt.innerHTML = '<div class="page">'+
-    '<div style="background:var(--surf2);border-radius:12px;height:80px;margin-bottom:18px" class="sk"></div>'+
-    '<div style="display:flex;gap:12px;margin-bottom:14px">'+skCards+'</div>'+
-    '<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">'+
-      '<div class="sk-card"><div class="sk sk-title"></div><div class="sk" style="height:110px;border-radius:8px"></div></div>'+
-      '<div class="sk-card"><div class="sk sk-title"></div>'+Array(3).fill('<div class="sk sk-line"></div>').join('')+'</div>'+
-    '</div>'+
-  '</div>';
-}
 
 
 // ══════════════════════════════════════════
@@ -8897,13 +8489,6 @@ function updateTopbar(){
   // Notification bell badge in mobile
   updateBadge();
 }
-function toast(msg,type='info'){
-  const c=$('toasts'),t=document.createElement('div');t.className=`toast ${type}`;
-  const ic={success:'✓',error:'OFF',info:'ℹ️',warn:'⚠'};
-  t.innerHTML=`<span>${ic[type]||'ℹ️'}</span><span>${msg}</span>`;c.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(12px)';t.style.transition='all .26s';},3000);
-  setTimeout(()=>t.remove(),3300);
-}
 
 // GUARDAR CONFIGURACIÓN
 
@@ -8937,18 +8522,6 @@ async function guardarCredencialesLocales(){
   setInterval(autoMora, 5*60*1000);
 })();
 
-// Restore local credentials from localStorage on startup
-(function(){
-  try {
-    var saved = localStorage.getItem(LOCAL_CREDS_KEY);
-    if(saved){
-      var creds = JSON.parse(saved);
-      if(creds && creds.user && (creds.passwordHash || creds.pass)){
-        USERS_LOCAL[0] = creds;
-      }
-    }
-  } catch(e) {}
-})();
 
 function guardarTasaBs(){
   var t = parseFloat(($('cfg_tasa_bs')&&$('cfg_tasa_bs').value)||'');
@@ -9267,23 +8840,6 @@ function imprimirFiniquito(){
 // GENERACIÓN DE REPORTES (imprime como PDF)
 // ══════════════════════════════════════════
 
-function _abrirVentanaImpresion(titulo, htmlContenido){
-  var estilos = `
-    body{font-family:Georgia,serif;padding:32px;color:#111;font-size:12px;line-height:1.7}
-    h2{text-align:center;font-size:16px;letter-spacing:1px;margin-bottom:4px}
-    h3{font-size:13px;margin-top:18px;margin-bottom:6px;border-bottom:1px solid #ddd;padding-bottom:4px}
-    table{width:100%;border-collapse:collapse;font-size:11.5px}
-    td,th{padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top}
-    th{background:#f5f5f5;font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px}
-    .ar{display:grid;padding:5px 0;border-bottom:1px solid #eee;font-size:11px}
-    .ah{display:grid;padding:5px 0;border-bottom:2px solid #111;font-weight:800;font-size:10.5px;text-transform:uppercase}
-    .pd{opacity:0.45;text-decoration:line-through}
-    @media print{body{padding:12px}button{display:none!important}}
-  `;
-  var w = window.open('','_blank','width=860,height=700');
-  w.document.write('<html><head><title>'+titulo+'</title><style>'+estilos+'</style></head><body>'+htmlContenido+'<br><button onclick="window.print()" style="background:#6C5CE7;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:16px">Imprimir / Guardar PDF</button><script>setTimeout(function(){window.print();},400);<\/script></body></html>');
-  w.document.close();
-}
 
 function descargarAmortPDF(){
   var credId = window._currentAmortCredId;
@@ -9678,9 +9234,6 @@ function importarBackupJSON(input){
 // ══════════════════════════════════════════════════════════════
 window._pages = {}; // { pagos: 1, clientes: 1, creditos: 1 }
 
-function pgGet(key){ return window._pages[key]||1; }
-function pgSet(key,n){ window._pages[key]=n; }
-
 function pgControls(key, total, perPage, navFn){
   var pages = Math.ceil(total/perPage) || 1;
   var cur   = pgGet(key);
@@ -9918,10 +9471,6 @@ function fmtMontoMov(m,cuenta){
   var color=es?'var(--green)':'var(--red)';
   var signo=es?'+':'-';
   return '<span style="font-weight:800;color:'+color+'">'+signo+fmt(m.monto)+'</span>';
-}
-function nombreMesEsp(yyyy_mm){
-  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var p=yyyy_mm.split('-'); return meses[parseInt(p[1])-1]+' '+p[0];
 }
 
 // ── PAGE RENDER ──
